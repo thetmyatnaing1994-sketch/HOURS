@@ -324,7 +324,6 @@ def main(page: ft.Page):
 
     date_picker = ft.DatePicker(on_change=on_date_picked)
 
-    # Page.open() သို့ ပြောင်းလဲထားပါသည်
     btn_pick_date = ft.IconButton(
         icon=ft.icons.CALENDAR_MONTH,
         tooltip="Select Date",
@@ -799,7 +798,6 @@ def main(page: ft.Page):
             )
         page.update()
 
-    # Page.open() သို့ ပြောင်းလဲထားပါသည်
     screen_4_summary = ft.Column(
         controls=[
             ft.Text("Machine Summary Report", size=15, weight=ft.FontWeight.BOLD),
