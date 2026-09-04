@@ -4,6 +4,12 @@ import os
 import sqlite3
 import flet as ft
 
+# Version ကွဲလွဲမှုကြောင့် စာလုံးကြီး/သေး Error မတက်စေရန် Safe Import ပြုလုပ်ခြင်း
+try:
+    from flet import colors, icons
+except ImportError:
+    from flet import Colors as colors, Icons as icons
+
 DB_NAME = "machine_management.db"
 
 
@@ -88,7 +94,7 @@ def get_download_path():
     if os.path.exists(android_download_path):
         return android_download_path
 
-    # Desktop (Windows / Mac / Linux) Fallback
+    # Desktop Fallback
     user_download_path = os.path.join(os.path.expanduser("~"), "Downloads")
     if os.path.exists(user_download_path):
         return user_download_path
@@ -111,8 +117,8 @@ def main(page: ft.Page):
 
     init_db()
 
-    def show_snack(msg: str, color=ft.colors.GREEN_700):
-        snack = ft.SnackBar(ft.Text(msg, color=ft.colors.WHITE), bgcolor=color)
+    def show_snack(msg: str, color=colors.GREEN_700):
+        snack = ft.SnackBar(ft.Text(msg, color=colors.WHITE), bgcolor=color)
         page.overlay.append(snack)
         snack.open = True
         page.update()
@@ -148,7 +154,7 @@ def main(page: ft.Page):
             conn.close()
             show_snack(f"Saved: Download/{file_name}")
         except Exception as err:
-            show_snack(f"Error saving CSV: {str(err)}", ft.colors.RED_600)
+            show_snack(f"Error saving CSV: {str(err)}", colors.RED_600)
 
     def export_summary_csv(e):
         try:
@@ -190,7 +196,7 @@ def main(page: ft.Page):
             conn.close()
             show_snack(f"Saved: Download/{file_name}")
         except Exception as err:
-            show_snack(f"Error saving CSV: {str(err)}", ft.colors.RED_600)
+            show_snack(f"Error saving CSV: {str(err)}", colors.RED_600)
 
     # ==========================================
     # SCREEN 1: Register Machines
@@ -218,7 +224,7 @@ def main(page: ft.Page):
                 conn_del.close()
                 load_registered_machines()
                 refresh_dashboard()
-                show_snack("Machine deleted.", ft.colors.ORANGE_800)
+                show_snack("Machine deleted.", colors.ORANGE_800)
 
             registered_machines_list.controls.append(
                 ft.Container(
@@ -227,22 +233,22 @@ def main(page: ft.Page):
                             ft.Column(
                                 [
                                     ft.Text(f"{name} ({no or 'No N/A'})", weight=ft.FontWeight.BOLD, size=14),
-                                    ft.Text(f"Type: {m_type or '-'}", size=12, color=ft.colors.GREY_700),
+                                    ft.Text(f"Type: {m_type or '-'}", size=12, color=colors.GREY_700),
                                 ],
                                 expand=True
                             ),
                             ft.IconButton(
-                                icon=ft.icons.DELETE_FOREVER,
-                                icon_color=ft.colors.RED_400,
+                                icon=icons.DELETE_FOREVER,
+                                icon_color=colors.RED_400,
                                 on_click=delete_machine
                             )
                         ],
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN
                     ),
                     padding=10,
-                    bgcolor=ft.colors.GREY_100,
+                    bgcolor=colors.GREY_100,
                     border_radius=8,
-                    border=ft.border.all(1, ft.colors.GREY_300)
+                    border=ft.border.all(1, colors.GREY_300)
                 )
             )
         page.update()
@@ -253,15 +259,15 @@ def main(page: ft.Page):
         no = reg_no_field.value.strip()
 
         if not name:
-            show_snack("Please enter machine name.", ft.colors.RED_400)
+            show_snack("Please enter machine name.", colors.RED_400)
             reg_name_field.focus()
             return
         if not m_type:
-            show_snack("Please enter machine type.", ft.colors.RED_400)
+            show_snack("Please enter machine type.", colors.RED_400)
             reg_type_field.focus()
             return
         if not no:
-            show_snack("Please enter machine number.", ft.colors.RED_400)
+            show_snack("Please enter machine number.", colors.RED_400)
             reg_no_field.focus()
             return
 
@@ -281,9 +287,9 @@ def main(page: ft.Page):
         show_snack("New machine registered successfully.")
         reg_name_field.focus()
 
-    reg_name_field.on_submit = lambda e: reg_type_field.focus() if reg_name_field.value.strip() else show_snack("Please enter machine name.", ft.colors.RED_400)
-    reg_type_field.on_submit = lambda e: reg_no_field.focus() if reg_type_field.value.strip() else show_snack("Please enter machine type.", ft.colors.RED_400)
-    reg_no_field.on_submit = lambda e: add_machine() if reg_no_field.value.strip() else show_snack("Please enter machine number.", ft.colors.RED_400)
+    reg_name_field.on_submit = lambda e: reg_type_field.focus() if reg_name_field.value.strip() else show_snack("Please enter machine name.", colors.RED_400)
+    reg_type_field.on_submit = lambda e: reg_no_field.focus() if reg_no_field.value.strip() else show_snack("Please enter machine type.", colors.RED_400)
+    reg_no_field.on_submit = lambda e: add_machine() if reg_no_field.value.strip() else show_snack("Please enter machine number.", colors.RED_400)
 
     screen_1_setup = ft.Column(
         controls=[
@@ -291,8 +297,8 @@ def main(page: ft.Page):
             ft.Column([reg_name_field, reg_type_field, reg_no_field], spacing=12),
             ft.ElevatedButton(
                 "Save Machine",
-                icon=ft.icons.ADD,
-                style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE_700),
+                icon=icons.ADD,
+                style=ft.ButtonStyle(color=colors.WHITE, bgcolor=colors.BLUE_700),
                 on_click=add_machine,
                 width=300
             ),
@@ -325,7 +331,7 @@ def main(page: ft.Page):
     date_picker = ft.DatePicker(on_change=on_date_picked)
 
     btn_pick_date = ft.IconButton(
-        icon=ft.icons.CALENDAR_MONTH,
+        icon=icons.CALENDAR_MONTH,
         tooltip="Select Date",
         on_click=lambda _: page.open(date_picker)
     )
@@ -336,9 +342,9 @@ def main(page: ft.Page):
     def update_status_summary():
         rec_date = selected_date_field.value.strip()
         if not rec_date:
-            status_summary_container.content = ft.Text("Please enter a date", color=ft.colors.GREY_600)
+            status_summary_container.content = ft.Text("Please enter a date", color=colors.GREY_600)
             status_summary_container.padding = 8
-            status_summary_container.bgcolor = ft.colors.GREY_100
+            status_summary_container.bgcolor = colors.GREY_100
             page.update()
             return
 
@@ -360,17 +366,17 @@ def main(page: ft.Page):
 
         status_summary_container.content = ft.Column([
             ft.Text(f"📊 {rec_date} Machine Operation Status Summary", weight=ft.FontWeight.BOLD, size=14,
-                    color=ft.colors.BLUE_900),
+                    color=colors.BLUE_900),
             ft.Divider(height=4),
             ft.Text(f"🟢 Working Machines ({len(working_machines)}): {working_names if working_names else 'None'}",
-                    color=ft.colors.GREEN_800, weight=ft.FontWeight.W_500),
+                    color=colors.GREEN_800, weight=ft.FontWeight.W_500),
             ft.Text(f"🔴 Idle Machines ({len(idle_machines)}): {idle_names if idle_names else 'None'}",
-                    color=ft.colors.RED_800, weight=ft.FontWeight.W_500),
+                    color=colors.RED_800, weight=ft.FontWeight.W_500),
         ])
         status_summary_container.padding = 12
-        status_summary_container.bgcolor = ft.colors.BLUE_50
+        status_summary_container.bgcolor = colors.BLUE_50
         status_summary_container.border_radius = 8
-        status_summary_container.border = ft.border.all(1, ft.colors.BLUE_300)
+        status_summary_container.border = ft.border.all(1, colors.BLUE_300)
         page.update()
 
     def build_machine_card(m_id, name, m_type, no):
@@ -430,7 +436,7 @@ def main(page: ft.Page):
         def on_status_change(e):
             r_date = selected_date_field.value.strip()
             if not r_date:
-                show_snack("Please enter a date first above", ft.colors.RED_400)
+                show_snack("Please enter a date first above", colors.RED_400)
                 return
 
             selected_st = status_radio.value
@@ -466,18 +472,18 @@ def main(page: ft.Page):
         )
 
         btn_play = ft.IconButton(
-            icon=ft.icons.PLAY_ARROW, icon_color=ft.colors.WHITE, bgcolor=ft.colors.GREEN_700,
+            icon=icons.PLAY_ARROW, icon_color=colors.WHITE, bgcolor=colors.GREEN_700,
             tooltip="Set Start Time", disabled=(current_status == "idle"), on_click=set_start_now
         )
         btn_stop = ft.IconButton(
-            icon=ft.icons.STOP, icon_color=ft.colors.WHITE, bgcolor=ft.colors.RED_700,
+            icon=icons.STOP, icon_color=colors.WHITE, bgcolor=colors.RED_700,
             tooltip="Set End Time", disabled=(current_status == "idle"), on_click=set_end_now
         )
 
         def save_machine_daily_record(e):
             r_date = selected_date_field.value.strip()
             if not r_date or not parse_date_string(r_date):
-                show_snack("Please enter a valid date (dd/mm/yyyy)", ft.colors.RED_400)
+                show_snack("Please enter a valid date (dd/mm/yyyy)", colors.RED_400)
                 return
 
             start_val = start_time_field.value.strip()
@@ -491,11 +497,11 @@ def main(page: ft.Page):
                 hours_num = float(hours_val) if hours_val else 0.0
                 fuel_num = float(fuel_val) if fuel_val else 0.0
             except ValueError:
-                show_snack("Please enter numbers for hours and fuel amount only", ft.colors.RED_400)
+                show_snack("Please enter numbers for hours and fuel amount only", colors.RED_400)
                 return
 
             if hours_num == 0 and fuel_num == 0 and not remark_val and not start_val:
-                show_snack(f"Please enter details for {name}", ft.colors.RED_400)
+                show_snack(f"Please enter details for {name}", colors.RED_400)
                 return
 
             conn_rec = sqlite3.connect(DB_NAME)
@@ -518,8 +524,8 @@ def main(page: ft.Page):
             page.update()
 
         btn_save = ft.ElevatedButton(
-            "Save", icon=ft.icons.SAVE,
-            style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE_700),
+            "Save", icon=icons.SAVE,
+            style=ft.ButtonStyle(color=colors.WHITE, bgcolor=colors.BLUE_700),
             disabled=(current_status == "idle"),
             on_click=save_machine_daily_record
         )
@@ -528,7 +534,7 @@ def main(page: ft.Page):
             content=ft.Column([
                 ft.Row([
                     ft.Text(f"{name} ({no or 'No N/A'})", size=15, weight=ft.FontWeight.BOLD),
-                    ft.Text(f"Type: {m_type or '-'}", size=11, color=ft.colors.GREY_700)
+                    ft.Text(f"Type: {m_type or '-'}", size=11, color=colors.GREY_700)
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
 
                 status_radio,
@@ -544,9 +550,9 @@ def main(page: ft.Page):
                 ], spacing=8)
             ], spacing=8),
             padding=12,
-            bgcolor=ft.colors.WHITE,
+            bgcolor=colors.WHITE,
             border_radius=8,
-            border=ft.border.all(1, ft.colors.BLUE_200)
+            border=ft.border.all(1, colors.BLUE_200)
         )
 
     def refresh_dashboard():
@@ -560,7 +566,7 @@ def main(page: ft.Page):
         if not machines:
             dashboard_container.controls.append(
                 ft.Text("No machines registered yet. Please add them in the 'Register Machine' tab first.",
-                        color=ft.colors.GREY_600))
+                        color=colors.GREY_600))
         else:
             dashboard_container.controls.append(
                 ft.Row([
@@ -610,7 +616,7 @@ def main(page: ft.Page):
         conn.commit()
         conn.close()
         load_records_data()
-        show_snack("Record deleted.", ft.colors.ORANGE_800)
+        show_snack("Record deleted.", colors.ORANGE_800)
 
     def load_records_data():
         records_table.sort_ascending = rec_sort_ascending
@@ -642,8 +648,8 @@ def main(page: ft.Page):
                         ft.DataCell(ft.Text(str(row[7] or ""))),
                         ft.DataCell(
                             ft.IconButton(
-                                icon=ft.icons.DELETE,
-                                icon_color=ft.colors.RED_500,
+                                icon=icons.DELETE,
+                                icon_color=colors.RED_500,
                                 tooltip="Delete",
                                 on_click=lambda e, r_id=rec_id: delete_record_entry(r_id)
                             )
@@ -660,8 +666,8 @@ def main(page: ft.Page):
                     ft.Text("Detailed Records", size=15, weight=ft.FontWeight.BOLD),
                     ft.ElevatedButton(
                         "Export CSV",
-                        icon=ft.icons.DOWNLOAD,
-                        style=ft.ButtonStyle(bgcolor=ft.colors.GREEN_700, color=ft.colors.WHITE),
+                        icon=icons.DOWNLOAD,
+                        style=ft.ButtonStyle(bgcolor=colors.GREEN_700, color=colors.WHITE),
                         on_click=export_daily_csv
                     )
                 ],
@@ -744,7 +750,7 @@ def main(page: ft.Page):
         conn.commit()
         conn.close()
         load_summary_data()
-        show_snack(f"Records for {m_name} deleted.", ft.colors.ORANGE_800)
+        show_snack(f"Records for {m_name} deleted.", colors.ORANGE_800)
 
     def load_summary_data(e=None):
         summary_table.sort_ascending = sum_sort_ascending
@@ -787,8 +793,8 @@ def main(page: ft.Page):
                         ft.DataCell(ft.Text(f"{row[5] or 0.0:.2f}")),
                         ft.DataCell(
                             ft.IconButton(
-                                icon=ft.icons.DELETE_FOREVER,
-                                icon_color=ft.colors.RED_600,
+                                icon=icons.DELETE_FOREVER,
+                                icon_color=colors.RED_600,
                                 tooltip="Delete",
                                 on_click=lambda e, name=m_name, no=m_no: delete_summary_group(name, no)
                             )
@@ -803,16 +809,16 @@ def main(page: ft.Page):
             ft.Text("Machine Summary Report", size=15, weight=ft.FontWeight.BOLD),
             ft.Row([
                 from_date_field,
-                ft.IconButton(icon=ft.icons.CALENDAR_MONTH, on_click=lambda _: page.open(from_date_picker)),
+                ft.IconButton(icon=icons.CALENDAR_MONTH, on_click=lambda _: page.open(from_date_picker)),
                 to_date_field,
-                ft.IconButton(icon=ft.icons.CALENDAR_MONTH, on_click=lambda _: page.open(to_date_picker)),
+                ft.IconButton(icon=icons.CALENDAR_MONTH, on_click=lambda _: page.open(to_date_picker)),
             ], spacing=5),
             ft.Row([
-                ft.ElevatedButton("View", icon=ft.icons.SEARCH, on_click=load_summary_data),
+                ft.ElevatedButton("View", icon=icons.SEARCH, on_click=load_summary_data),
                 ft.ElevatedButton(
                     "Export CSV",
-                    icon=ft.icons.DOWNLOAD_FOR_OFFLINE,
-                    style=ft.ButtonStyle(bgcolor=ft.colors.GREEN_700, color=ft.colors.WHITE),
+                    icon=icons.DOWNLOAD_FOR_OFFLINE,
+                    style=ft.ButtonStyle(bgcolor=colors.GREEN_700, color=colors.WHITE),
                     on_click=export_summary_csv
                 )
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
@@ -835,8 +841,8 @@ def main(page: ft.Page):
 
         for i, btn in enumerate([btn_tab1, btn_tab2, btn_tab3, btn_tab4]):
             btn.style = ft.ButtonStyle(
-                color=ft.colors.WHITE if current_tab == i else ft.colors.BLUE_800,
-                bgcolor=ft.colors.BLUE_800 if current_tab == i else ft.colors.BLUE_50,
+                color=colors.WHITE if current_tab == i else colors.BLUE_800,
+                bgcolor=colors.BLUE_800 if current_tab == i else colors.BLUE_50,
             )
 
         if current_tab == 0:
@@ -854,17 +860,17 @@ def main(page: ft.Page):
 
         page.update()
 
-    btn_tab1 = ft.ElevatedButton("Register Machine", icon=ft.icons.SETTINGS,
-                                 style=ft.ButtonStyle(color=ft.colors.BLUE_800, bgcolor=ft.colors.BLUE_50),
+    btn_tab1 = ft.ElevatedButton("Register Machine", icon=icons.SETTINGS,
+                                 style=ft.ButtonStyle(color=colors.BLUE_800, bgcolor=colors.BLUE_50),
                                  on_click=lambda _: switch_screen(0))
-    btn_tab2 = ft.ElevatedButton("Operations", icon=ft.icons.DASHBOARD,
-                                 style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.BLUE_800),
+    btn_tab2 = ft.ElevatedButton("Operations", icon=icons.DASHBOARD,
+                                 style=ft.ButtonStyle(color=colors.WHITE, bgcolor=colors.BLUE_800),
                                  on_click=lambda _: switch_screen(1))
-    btn_tab3 = ft.ElevatedButton("Detailed CSV", icon=ft.icons.LIST_ALT,
-                                 style=ft.ButtonStyle(color=ft.colors.BLUE_800, bgcolor=ft.colors.BLUE_50),
-                                 on_click=lambda _: switch_screen(2))
-    btn_tab4 = ft.ElevatedButton("Summary CSV", icon=ft.icons.SUMMARIZE,
-                                 style=ft.ButtonStyle(color=ft.colors.BLUE_800, bgcolor=ft.colors.BLUE_50),
+    btn_tab3 = ft.ElevatedButton("Detailed CSV", icon=icons.LIST_ALT,
+                                 style=ft.ButtonStyle(color=colors.BLUE_800, bgcolor=colors.BLUE_50),
+                                 on_click=lambda _: switch_screen(3))
+    btn_tab4 = ft.ElevatedButton("Summary CSV", icon=icons.SUMMARIZE,
+                                 style=ft.ButtonStyle(color=colors.BLUE_800, bgcolor=colors.BLUE_50),
                                  on_click=lambda _: switch_screen(3))
 
     nav_bar = ft.Row(
