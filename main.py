@@ -125,6 +125,15 @@ def main(page: ft.Page):
 
     init_db()
 
+    def open_picker(picker):
+        """DatePicker Safe Open Helper (Fixes AttributeError: 'Page' object has no attribute 'open')"""
+        if hasattr(page, "open"):
+            page.open(picker)
+        else:
+            page.dialog = picker
+            picker.open = True
+            page.update()
+
     def show_snack(msg: str, color=colors.GREEN_700):
         snack = ft.SnackBar(ft.Text(msg, color=colors.WHITE), bgcolor=color)
         page.overlay.append(snack)
@@ -422,7 +431,7 @@ def main(page: ft.Page):
     btn_pick_date = ft.IconButton(
         icon=icons.CALENDAR_MONTH,
         tooltip="Select Date",
-        on_click=lambda _: page.open(date_picker)
+        on_click=lambda _: open_picker(date_picker)
     )
 
     dashboard_container = ft.Column(spacing=12, scroll=ft.ScrollMode.AUTO)
@@ -776,7 +785,7 @@ def main(page: ft.Page):
             ft.Text("Detailed Daily Records", size=15, weight=ft.FontWeight.BOLD),
             ft.Row([
                 filter_daily_date_field,
-                ft.IconButton(icon=icons.CALENDAR_MONTH, on_click=lambda _: page.open(daily_filter_picker)),
+                ft.IconButton(icon=icons.CALENDAR_MONTH, on_click=lambda _: open_picker(daily_filter_picker)),
                 ft.ElevatedButton("Filter", icon=icons.SEARCH, on_click=load_records_data),
             ], spacing=5),
             ft.Row([
@@ -924,9 +933,9 @@ def main(page: ft.Page):
             ft.Text("Machine Summary Report", size=15, weight=ft.FontWeight.BOLD),
             ft.Row([
                 from_date_field,
-                ft.IconButton(icon=icons.CALENDAR_MONTH, on_click=lambda _: page.open(from_date_picker)),
+                ft.IconButton(icon=icons.CALENDAR_MONTH, on_click=lambda _: open_picker(from_date_picker)),
                 to_date_field,
-                ft.IconButton(icon=icons.CALENDAR_MONTH, on_click=lambda _: page.open(to_date_picker)),
+                ft.IconButton(icon=icons.CALENDAR_MONTH, on_click=lambda _: open_picker(to_date_picker)),
             ], spacing=5),
             ft.Row([
                 ft.ElevatedButton("View", icon=icons.SEARCH, on_click=load_summary_data),
@@ -985,10 +994,12 @@ def main(page: ft.Page):
             page.update()
 
     def handle_pan_update(e: ft.DragUpdateEvent):
-        if e.delta_x > 20:
+        """Fixes AttributeError: 'DragUpdateEvent' object has no attribute 'delta_x'"""
+        dx = getattr(e, "delta_x", getattr(e, "delta_dx", 0))
+        if dx > 20:
             if current_tab > 0:
                 switch_screen(current_tab - 1)
-        elif e.delta_x < -20:
+        elif dx < -20:
             if current_tab < len(screens) - 1:
                 switch_screen(current_tab + 1)
 
