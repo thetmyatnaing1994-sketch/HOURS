@@ -6,9 +6,18 @@ import flet as ft
 
 # Version ကွဲလွဲမှုကြောင့် စာလုံးကြီး/သေး Error မတက်စေရန် Safe Import ပြုလုပ်ခြင်း
 try:
-    from flet import colors, icons
+    from flet import colors, icons, border
 except ImportError:
-    from flet import Colors as colors, Icons as icons
+    from flet import Colors as colors, Icons as icons, Border as border
+
+# Border Helper Function (Flet version အမျိုးမျိုးတွင် Safe ဖြစ်စေရန်)
+def get_border_all(width, color):
+    if hasattr(ft, "border") and hasattr(ft.border, "all"):
+        return ft.border.all(width, color)
+    elif hasattr(ft, "Border") and hasattr(ft.Border, "all"):
+        return ft.Border.all(width, color)
+    else:
+        return border.all(width, color)
 
 DB_NAME = "machine_management.db"
 
@@ -325,7 +334,7 @@ def main(page: ft.Page):
                     padding=10,
                     bgcolor=colors.GREY_100,
                     border_radius=8,
-                    border=ft.border.all(1, colors.GREY_300)
+                    border=get_border_all(1, colors.GREY_300)
                 )
             )
         page.update()
@@ -456,7 +465,7 @@ def main(page: ft.Page):
         status_summary_container.padding = 12
         status_summary_container.bgcolor = colors.BLUE_50
         status_summary_container.border_radius = 8
-        status_summary_container.border = ft.border.all(1, colors.BLUE_300)
+        status_summary_container.border = get_border_all(1, colors.BLUE_300)
         page.update()
 
     def build_machine_card(m_id, name, m_type, no):
@@ -632,7 +641,7 @@ def main(page: ft.Page):
             padding=12,
             bgcolor=colors.WHITE,
             border_radius=8,
-            border=ft.border.all(1, colors.BLUE_200)
+            border=get_border_all(1, colors.BLUE_200)
         )
 
     def refresh_dashboard():
@@ -976,11 +985,9 @@ def main(page: ft.Page):
             page.update()
 
     def handle_pan_update(e: ft.DragUpdateEvent):
-        # ညာဘက်သို့ ပွတ်ဆွဲလျှင် (delta_x > 20): ယခင် Screen သို့ ပြန်သွားပါမည်။
         if e.delta_x > 20:
             if current_tab > 0:
                 switch_screen(current_tab - 1)
-        # ဘယ်ဘက်သို့ ပွတ်ဆွဲလျှင် (delta_x < -20): နောက် Screen သို့ ကူးပြောင်းပါမည်။
         elif e.delta_x < -20:
             if current_tab < len(screens) - 1:
                 switch_screen(current_tab + 1)
