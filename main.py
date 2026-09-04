@@ -106,7 +106,6 @@ def main(page: ft.Page):
     page.title = "Machine Hours and Fuel Record Management"
     page.theme_mode = ft.ThemeMode.LIGHT
     page.padding = 15
-    page.scroll = ft.ScrollMode.AUTO
 
     # Font Setup
     assets_dir = os.path.join(os.path.dirname(__file__), "assets")
@@ -129,27 +128,104 @@ def main(page: ft.Page):
     def export_daily_csv(e):
         try:
             target_dir = get_download_path()
-            file_name = f"daily_machine_details_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            selected_d = filter_daily_date_field.value.strip()
+
+            if selected_d:
+                file_date_str = selected_d.replace("/", "-")
+                file_name = f"daily_details_{file_date_str}_{datetime.now().strftime('%H%M%S')}.csv"
+            else:
+                file_name = f"all_daily_details_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+
             save_path = os.path.join(target_dir, file_name)
 
             conn = sqlite3.connect(DB_NAME)
             cursor = conn.cursor()
 
             order_clause = "ASC" if rec_sort_ascending else "DESC"
-            cursor.execute(f"""
-                SELECT date, machine_name, machine_type, machine_no, start_time, end_time, work_hours, fuel_gallons, remark 
-                FROM records 
-                ORDER BY (substr(date, 7, 4) || '-' || substr(date, 4, 2) || '-' || substr(date, 1, 2)) {order_clause}, id {order_clause}
-            """)
+
+            query = """
+                SELECT 
+                    r.id, 
+                    r.date, 
+                    r.machine_id, 
+                    r.machine_name, 
+                    r.machine_type, 
+                    r.machine_no, 
+                    r.start_time, 
+                    r.end_time, 
+                    r.work_hours, 
+                    r.fuel_gallons, 
+                    COALESCE(ms.status, 'working') AS status,
+                    r.remark 
+                FROM records r
+                LEFT JOIN machine_status ms 
+                    ON r.date = ms.date AND r.machine_id = ms.machine_id
+            """
+            params = []
+            if selected_d:
+                query += " WHERE r.date = ?"
+                params.append(selected_d)
+
+            query += f" ORDER BY (substr(r.date, 7, 4) || '-' || substr(r.date, 4, 2) || '-' || substr(r.date, 1, 2)) {order_clause}, r.id {order_clause}"
+
+            cursor.execute(query, params)
             rows = cursor.fetchall()
+
+            if not rows:
+                show_snack("No records found for the selected date.", colors.ORANGE_800)
+                conn.close()
+                return
 
             with open(save_path, mode="w", newline="", encoding="utf-8-sig") as f:
                 writer = csv.writer(f)
                 writer.writerow([
-                    "Date (dd/mm/yyyy)", "Machine Name", "Type", "Machine No.",
-                    "Start Time", "End Time", "Work Hours", "Fuel (Gallons)", "Remark"
+                    "Sr No.",
+                    "Record ID",
+                    "Date (dd/mm/yyyy)",
+                    "Machine ID",
+                    "Machine Name",
+                    "Machine Type",
+                    "Machine No.",
+                    "Operation Status",
+                    "Start Time",
+                    "End Time",
+                    "Work Hours",
+                    "Fuel Consumed (Gallons)",
+                    "Fuel Consumption Rate (Gal/Hr)",
+                    "Remark"
                 ])
-                writer.writerows(rows)
+
+                total_hours = 0.0
+                total_fuel = 0.0
+
+                for idx, row in enumerate(rows, 1):
+                    rec_id, r_date, m_id, m_name, m_type, m_no, s_time, e_time, w_hrs, f_gal, status, remark = row
+                    rate = round(f_gal / w_hrs, 2) if w_hrs > 0 else 0.0
+                    total_hours += w_hrs
+                    total_fuel += f_gal
+
+                    writer.writerow([
+                        idx,
+                        rec_id,
+                        r_date,
+                        m_id or "-",
+                        m_name,
+                        m_type or "-",
+                        m_no or "-",
+                        status.capitalize(),
+                        s_time or "-",
+                        e_time or "-",
+                        f"{w_hrs:.2f}",
+                        f"{f_gal:.2f}",
+                        f"{rate:.2f}",
+                        remark or "-"
+                    ])
+
+                writer.writerow([])
+                writer.writerow([
+                    "TOTAL", "", "", "", "", "", "", "", "", "",
+                    f"{total_hours:.2f}", f"{total_fuel:.2f}", "", ""
+                ])
 
             conn.close()
             show_snack(f"Saved: Download/{file_name}")
@@ -176,8 +252,8 @@ def main(page: ft.Page):
             """
             params = []
             if from_d_val and to_d_val:
-                query += " WHERE date >= ? AND date <= ?"
-                params.extend([from_d_val, to_d_val])
+                query += " WHERE (substr(date, 7, 4) || '-' || substr(date, 4, 2) || '-' || substr(date, 1, 2)) BETWEEN (substr(?, 7, 4) || '-' || substr(?, 4, 2) || '-' || substr(?, 1, 2)) AND (substr(?, 7, 4) || '-' || substr(?, 4, 2) || '-' || substr(?, 1, 2))"
+                params.extend([from_d_val, from_d_val, from_d_val, to_d_val, to_d_val, to_d_val])
 
             order_clause = "ASC" if sum_sort_ascending else "DESC"
             query += f" GROUP BY machine_name, machine_no ORDER BY (substr(MIN(date), 7, 4) || '-' || substr(MIN(date), 4, 2) || '-' || substr(MIN(date), 1, 2)) {order_clause}"
@@ -188,10 +264,11 @@ def main(page: ft.Page):
             with open(save_path, mode="w", newline="", encoding="utf-8-sig") as f:
                 writer = csv.writer(f)
                 writer.writerow([
-                    "Machine Name", "Type", "Machine No.", "Start Date",
+                    "Sr No.", "Machine Name", "Type", "Machine No.", "Start Date",
                     "End Date", "Total Hours", "Total Fuel (Gallons)"
                 ])
-                writer.writerows(rows)
+                for idx, row in enumerate(rows, 1):
+                    writer.writerow([idx] + list(row))
 
             conn.close()
             show_snack(f"Saved: Download/{file_name}")
@@ -287,9 +364,12 @@ def main(page: ft.Page):
         show_snack("New machine registered successfully.")
         reg_name_field.focus()
 
-    reg_name_field.on_submit = lambda e: reg_type_field.focus() if reg_name_field.value.strip() else show_snack("Please enter machine name.", colors.RED_400)
-    reg_type_field.on_submit = lambda e: reg_no_field.focus() if reg_no_field.value.strip() else show_snack("Please enter machine type.", colors.RED_400)
-    reg_no_field.on_submit = lambda e: add_machine() if reg_no_field.value.strip() else show_snack("Please enter machine number.", colors.RED_400)
+    reg_name_field.on_submit = lambda e: reg_type_field.focus() if reg_name_field.value.strip() else show_snack(
+        "Please enter machine name.", colors.RED_400)
+    reg_type_field.on_submit = lambda e: reg_no_field.focus() if reg_type_field.value.strip() else show_snack(
+        "Please enter machine type.", colors.RED_400)
+    reg_no_field.on_submit = lambda e: add_machine() if reg_no_field.value.strip() else show_snack(
+        "Please enter machine number.", colors.RED_400)
 
     screen_1_setup = ft.Column(
         controls=[
@@ -315,7 +395,7 @@ def main(page: ft.Page):
     # ==========================================
     selected_date_field = ft.TextField(
         label="Date (dd/mm/yyyy)",
-        value="",
+        value=datetime.now().strftime("%d/%m/%Y"),
         hint_text="DD/MM/YYYY",
         dense=True,
         width=180,
@@ -588,6 +668,21 @@ def main(page: ft.Page):
     # ==========================================
     rec_sort_ascending = False
 
+    filter_daily_date_field = ft.TextField(
+        label="Filter Date (dd/mm/yyyy)",
+        value="",
+        hint_text="DD/MM/YYYY",
+        expand=True,
+        dense=True
+    )
+
+    def on_daily_filter_date_picked(e):
+        if daily_filter_picker.value:
+            filter_daily_date_field.value = daily_filter_picker.value.strftime("%d/%m/%Y")
+            load_records_data()
+
+    daily_filter_picker = ft.DatePicker(on_change=on_daily_filter_date_picked)
+
     def on_records_sort(e):
         nonlocal rec_sort_ascending
         rec_sort_ascending = not rec_sort_ascending
@@ -618,18 +713,26 @@ def main(page: ft.Page):
         load_records_data()
         show_snack("Record deleted.", colors.ORANGE_800)
 
-    def load_records_data():
+    def load_records_data(e=None):
         records_table.sort_ascending = rec_sort_ascending
         order_clause = "ASC" if rec_sort_ascending else "DESC"
+        filter_d = filter_daily_date_field.value.strip()
 
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
 
-        cursor.execute(f"""
+        query = """
             SELECT id, date, machine_name, start_time, end_time, work_hours, fuel_gallons, remark 
             FROM records 
-            ORDER BY (substr(date, 7, 4) || '-' || substr(date, 4, 2) || '-' || substr(date, 1, 2)) {order_clause}, id {order_clause}
-        """)
+        """
+        params = []
+        if filter_d:
+            query += " WHERE date = ?"
+            params.append(filter_d)
+
+        query += f" ORDER BY (substr(date, 7, 4) || '-' || substr(date, 4, 2) || '-' || substr(date, 1, 2)) {order_clause}, id {order_clause}"
+
+        cursor.execute(query, params)
         rows = cursor.fetchall()
         conn.close()
 
@@ -661,18 +764,21 @@ def main(page: ft.Page):
 
     screen_3_records = ft.Column(
         controls=[
-            ft.Row(
-                [
-                    ft.Text("Detailed Records", size=15, weight=ft.FontWeight.BOLD),
-                    ft.ElevatedButton(
-                        "Export CSV",
-                        icon=icons.DOWNLOAD,
-                        style=ft.ButtonStyle(bgcolor=colors.GREEN_700, color=colors.WHITE),
-                        on_click=export_daily_csv
-                    )
-                ],
-                alignment=ft.MainAxisAlignment.SPACE_BETWEEN
-            ),
+            ft.Text("Detailed Daily Records", size=15, weight=ft.FontWeight.BOLD),
+            ft.Row([
+                filter_daily_date_field,
+                ft.IconButton(icon=icons.CALENDAR_MONTH, on_click=lambda _: page.open(daily_filter_picker)),
+                ft.ElevatedButton("Filter", icon=icons.SEARCH, on_click=load_records_data),
+            ], spacing=5),
+            ft.Row([
+                ft.ElevatedButton(
+                    "Export CSV",
+                    icon=icons.DOWNLOAD,
+                    style=ft.ButtonStyle(bgcolor=colors.GREEN_700, color=colors.WHITE),
+                    on_click=export_daily_csv
+                )
+            ], alignment=ft.MainAxisAlignment.END),
+            ft.Divider(),
             ft.Row([records_table], scroll=ft.ScrollMode.ALWAYS)
         ],
         spacing=10,
@@ -743,8 +849,8 @@ def main(page: ft.Page):
         params = [m_name, m_no]
 
         if from_d and to_d:
-            query += " AND date >= ? AND date <= ?"
-            params.extend([from_d, to_d])
+            query += " AND (substr(date, 7, 4) || '-' || substr(date, 4, 2) || '-' || substr(date, 1, 2)) BETWEEN (substr(?, 7, 4) || '-' || substr(?, 4, 2) || '-' || substr(?, 1, 2)) AND (substr(?, 7, 4) || '-' || substr(?, 4, 2) || '-' || substr(?, 1, 2))"
+            params.extend([from_d, from_d, from_d, to_d, to_d, to_d])
 
         cursor.execute(query, params)
         conn.commit()
@@ -769,8 +875,8 @@ def main(page: ft.Page):
         params = []
 
         if from_d and to_d:
-            query += " WHERE date >= ? AND date <= ?"
-            params.extend([from_d, to_d])
+            query += " WHERE (substr(date, 7, 4) || '-' || substr(date, 4, 2) || '-' || substr(date, 1, 2)) BETWEEN (substr(?, 7, 4) || '-' || substr(?, 4, 2) || '-' || substr(?, 1, 2)) AND (substr(?, 7, 4) || '-' || substr(?, 4, 2) || '-' || substr(?, 1, 2))"
+            params.extend([from_d, from_d, from_d, to_d, to_d, to_d])
 
         query += f" GROUP BY machine_name, machine_no ORDER BY (substr(MIN(date), 7, 4) || '-' || substr(MIN(date), 4, 2) || '-' || substr(MIN(date), 1, 2)) {order_clause}"
 
@@ -830,35 +936,60 @@ def main(page: ft.Page):
     )
 
     # ==========================================
-    # NAVIGATION LOGIC
+    # NAVIGATION LOGIC & SWIPE GESTURE & ANIMATION
     # ==========================================
-    main_content_area = ft.Container(content=dashboard_container, expand=True)
+    screens = [screen_1_setup, dashboard_container, screen_3_records, screen_4_summary]
     current_tab = 1
+
+    # AnimatedSwitcher control for Smooth Fade In / Fade Out Effect
+    animated_switcher = ft.AnimatedSwitcher(
+        content=screens[current_tab],
+        transition=ft.AnimatedSwitcherTransition.FADE,
+        duration=300,
+        reverse_duration=300,
+        expand=True
+    )
+
+    main_content_area = ft.Container(content=animated_switcher, expand=True)
 
     def switch_screen(tab_index):
         nonlocal current_tab
-        current_tab = tab_index
+        if 0 <= tab_index < len(screens):
+            current_tab = tab_index
 
-        for i, btn in enumerate([btn_tab1, btn_tab2, btn_tab3, btn_tab4]):
-            btn.style = ft.ButtonStyle(
-                color=colors.WHITE if current_tab == i else colors.BLUE_800,
-                bgcolor=colors.BLUE_800 if current_tab == i else colors.BLUE_50,
-            )
+            for i, btn in enumerate([btn_tab1, btn_tab2, btn_tab3, btn_tab4]):
+                btn.style = ft.ButtonStyle(
+                    color=colors.WHITE if current_tab == i else colors.BLUE_800,
+                    bgcolor=colors.BLUE_800 if current_tab == i else colors.BLUE_50,
+                )
 
-        if current_tab == 0:
-            load_registered_machines()
-            main_content_area.content = screen_1_setup
-        elif current_tab == 1:
-            refresh_dashboard()
-            main_content_area.content = dashboard_container
-        elif current_tab == 2:
-            load_records_data()
-            main_content_area.content = screen_3_records
-        elif current_tab == 3:
-            load_summary_data()
-            main_content_area.content = screen_4_summary
+            if current_tab == 0:
+                load_registered_machines()
+            elif current_tab == 1:
+                refresh_dashboard()
+            elif current_tab == 2:
+                load_records_data()
+            elif current_tab == 3:
+                load_summary_data()
 
-        page.update()
+            animated_switcher.content = screens[current_tab]
+            page.update()
+
+    def handle_pan_update(e: ft.DragUpdateEvent):
+        # ညာဘက်သို့ ပွတ်ဆွဲလျှင် (delta_x > 20): ယခင် Screen သို့ ပြန်သွားပါမည်။
+        if e.delta_x > 20:
+            if current_tab > 0:
+                switch_screen(current_tab - 1)
+        # ဘယ်ဘက်သို့ ပွတ်ဆွဲလျှင် (delta_x < -20): နောက် Screen သို့ ကူးပြောင်းပါမည်။
+        elif e.delta_x < -20:
+            if current_tab < len(screens) - 1:
+                switch_screen(current_tab + 1)
+
+    gesture_detector = ft.GestureDetector(
+        content=main_content_area,
+        on_pan_update=handle_pan_update,
+        expand=True
+    )
 
     btn_tab1 = ft.ElevatedButton("Register Machine", icon=icons.SETTINGS,
                                  style=ft.ButtonStyle(color=colors.BLUE_800, bgcolor=colors.BLUE_50),
@@ -868,7 +999,7 @@ def main(page: ft.Page):
                                  on_click=lambda _: switch_screen(1))
     btn_tab3 = ft.ElevatedButton("Detailed CSV", icon=icons.LIST_ALT,
                                  style=ft.ButtonStyle(color=colors.BLUE_800, bgcolor=colors.BLUE_50),
-                                 on_click=lambda _: switch_screen(3))
+                                 on_click=lambda _: switch_screen(2))
     btn_tab4 = ft.ElevatedButton("Summary CSV", icon=icons.SUMMARIZE,
                                  style=ft.ButtonStyle(color=colors.BLUE_800, bgcolor=colors.BLUE_50),
                                  on_click=lambda _: switch_screen(3))
@@ -879,7 +1010,7 @@ def main(page: ft.Page):
         alignment=ft.MainAxisAlignment.START
     )
 
-    page.add(nav_bar, ft.Divider(height=10), main_content_area)
+    page.add(nav_bar, ft.Divider(height=10), gesture_detector)
 
     load_registered_machines()
     refresh_dashboard()
