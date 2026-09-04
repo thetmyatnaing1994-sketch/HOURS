@@ -35,7 +35,7 @@ jobs:
 
       - name: Build Android APK
         run: |
-          flet build apk --main main.py --icon assets/icon.png
+          flet build apk --icon assets/icon.png main.py
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
