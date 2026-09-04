@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - master
   workflow_dispatch:
 
 jobs:
@@ -12,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository Code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Set up Python 3.10
@@ -29,21 +28,14 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Python Dependencies
+      - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install flet
 
-      - name: Build Android APK via Flet CLI
+      - name: Build Android APK
         run: |
-          # main.py သို့မဟုတ် ဆတန_3.py ဖိုင်အား APK တည်ဆောက်ပါသည်
-          if [ -f "ဆတန_3.py" ]; then
-            flet build apk --main ဆတန_3.py --icon assets/app_icon.png
-          elif [ -f "main.py" ]; then
-            flet build apk --main main.py --icon assets/app_icon.png
-          else
-            flet build apk --icon assets/app_icon.png
-          fi
+          flet build apk --main main.py --icon assets/icon.png
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
