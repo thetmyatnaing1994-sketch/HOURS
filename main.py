@@ -4,14 +4,14 @@ import os
 import sqlite3
 import flet as ft
 
-# Dynamic Flet module reference to support multiple Flet versions without IDE inspection warnings
+# Safe references for cross-version Flet compatibility
 colors = getattr(ft, "colors", getattr(ft, "Colors", None))
 icons = getattr(ft, "icons", getattr(ft, "Icons", None))
 border = getattr(ft, "border", getattr(ft, "Border", None))
 
 
-# Border Helper Function
 def get_border_all(width, color):
+    """Border helper handling API changes across Flet versions."""
     if hasattr(ft, "border") and hasattr(ft.border, "all"):
         return ft.border.all(width, color)
     elif hasattr(ft, "Border") and hasattr(ft.Border, "all"):
@@ -25,7 +25,7 @@ DB_NAME = "machine_management.db"
 
 
 def init_db():
-    """Create Database and Tables with Automatic Schema Migration"""
+    """Database initialization and dynamic schema migration."""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
@@ -72,7 +72,7 @@ def init_db():
         )
     """)
 
-    # Database Schema Migration
+    # Dynamic Schema Migration
     cursor.execute("PRAGMA table_info(machines)")
     m_columns = [col[1] for col in cursor.fetchall()]
     if "operator" not in m_columns:
@@ -102,7 +102,7 @@ def parse_time_string(time_str):
 
 
 def get_download_path():
-    """Android / Storage Path Detection"""
+    """Detects Android External Download Path or OS Fallback."""
     android_download_path = "/storage/emulated/0/Download"
     if os.path.exists(android_download_path):
         return android_download_path
@@ -115,14 +115,13 @@ def get_download_path():
 
 
 def format_capital_title(text_val: str) -> str:
-    """စာလုံးများကို ရှေ့ဆုံးစာလုံးအကြီး နောက်စာလုံးအသေး (Title Case) သို့ ပြောင်းလဲခြင်း"""
     if not text_val:
         return ""
     return text_val.strip().title()
 
 
 def clean_outdated_daily_operations():
-    """ဒီနေ့ မနက် 0:00 မှ ည 12:00 ပြည့်ပြီး နောက်နေ့ရောက်ပါက Active Machines များအား Auto Clean လုပ်ခြင်း"""
+    """Cleans outdated active machines from previous days."""
     today_str = datetime.now().strftime("%d/%m/%Y")
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -152,16 +151,14 @@ def main(page: ft.Page):
         snack.open = True
         page.update()
 
-    # Filter State variable across screens
     search_filter_text = ft.Ref[ft.TextField]()
 
     # ==========================================
-    # EXPORT CSV LOGIC (Modified to include Titles/Headers)
+    # EXPORT CSV LOGIC
     # ==========================================
     def export_single_machine_csv(target_date, m_id, m_name, m_no):
         try:
             target_dir = get_download_path()
-
             clean_date = target_date.replace("/", "-")
             clean_name = m_name.replace(" ", "_")
             clean_no = (m_no or "no").replace(" ", "_")
@@ -202,7 +199,6 @@ def main(page: ft.Page):
 
             with open(save_path, mode="w", newline="", encoding="utf-8-sig") as f:
                 writer = csv.writer(f)
-
                 writer.writerow([f"Machine Operation Report: {m_name} ({m_no or 'N/A'})"])
                 writer.writerow([f"Date: {target_date}"])
                 writer.writerow([])
@@ -242,8 +238,8 @@ def main(page: ft.Page):
     # ==========================================
     # SCREEN 1: Register Machines
     # ==========================================
-    reg_name_field = ft.TextField(label="Machine Name", hint_text="e.g. Grader/Roller/Exacavator")
-    reg_type_field = ft.TextField(label="Type", hint_text="e.g. Komatsu/Hyundi/Watanabe")
+    reg_name_field = ft.TextField(label="Machine Name", hint_text="e.g. Grader/Roller/Excavator")
+    reg_type_field = ft.TextField(label="Type", hint_text="e.g. Komatsu/Hyundai/Watanabe")
     reg_no_field = ft.TextField(label="Machine No.", hint_text="e.g. 1B-123")
     reg_operator_field = ft.TextField(label="Operator Name")
 
@@ -283,7 +279,7 @@ def main(page: ft.Page):
                 refresh_dashboard()
                 show_snack("Machine deleted.", colors.ORANGE_800 if colors else None)
 
-            display_str = f"{name}({no or 'N/A'}),type:{m_type or 'N/A'},operator:{op_name or 'N/A'}"
+            display_str = f"{name}({no or 'N/A'}), type:{m_type or 'N/A'}, operator:{op_name or 'N/A'}"
 
             registered_machines_list.controls.append(
                 ft.Container(
@@ -380,7 +376,7 @@ def main(page: ft.Page):
     )
 
     # ==========================================
-    # SCREEN 2: Operations Portal (Dashboard & Today Summary)
+    # SCREEN 2: Operations Portal
     # ==========================================
     dashboard_container = ft.Column(spacing=10, scroll=ft.ScrollMode.AUTO, expand=True)
     status_summary_container = ft.Container()
@@ -391,7 +387,6 @@ def main(page: ft.Page):
 
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
-
         cursor.execute("""
             SELECT m.id, m.machine_name, m.machine_no, m.operator 
             FROM machines m
@@ -427,19 +422,10 @@ def main(page: ft.Page):
             end_time_field.value = datetime.now().strftime("%I:%M %p")
             page.update()
 
-        start_time_field = ft.TextField(
-            label="Start Time", hint_text="08:00 AM", expand=True, dense=True
-        )
-        end_time_field = ft.TextField(
-            label="End Time", hint_text="12:00 PM", expand=True, dense=True
-        )
-
-        fuel_field = ft.TextField(
-            label="Fuel (Gallons)", hint_text="0.0", expand=True, dense=True
-        )
-        remark_field = ft.TextField(
-            label="Remark", hint_text="e.g. Morning / Afternoon", dense=True
-        )
+        start_time_field = ft.TextField(label="Start Time", hint_text="08:00 AM", expand=True, dense=True)
+        end_time_field = ft.TextField(label="End Time", hint_text="12:00 PM", expand=True, dense=True)
+        fuel_field = ft.TextField(label="Fuel (Gallons)", hint_text="0.0", expand=True, dense=True)
+        remark_field = ft.TextField(label="Remark", hint_text="e.g. Morning / Afternoon", dense=True)
 
         btn_play = ft.IconButton(
             icon=getattr(icons, "PLAY_ARROW", "play_arrow") if icons else "play_arrow",
@@ -512,13 +498,10 @@ def main(page: ft.Page):
                     ft.Text(f"Operator: {op_name or '-'}", size=12, color=colors.BLUE_800 if colors else None, weight=ft.FontWeight.W_500)
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                 ft.Text(f"Type: {m_type or '-'}", size=11, color=colors.GREY_700 if colors else None),
-
                 ft.Divider(height=4),
-
                 ft.Row([start_time_field, btn_play]),
                 ft.Row([end_time_field, btn_stop]),
                 ft.Row([fuel_field], spacing=10),
-
                 ft.Column([
                     remark_field,
                     ft.Row([btn_save], alignment=ft.MainAxisAlignment.END)
@@ -594,7 +577,6 @@ def main(page: ft.Page):
         btn_date_sort.icon = getattr(icons, "ARROW_DOWNWARD" if date_sort_descending else "ARROW_UPWARD", "arrow_downward") if icons else ("arrow_downward" if date_sort_descending else "arrow_upward")
         load_records_data()
 
-    # Fixed: Changed keyword argument text= to positional argument to support all Flet versions
     btn_date_sort = ft.ElevatedButton(
         "Sort: Newest First",
         icon=getattr(icons, "ARROW_DOWNWARD", "arrow_downward") if icons else "arrow_downward",
@@ -815,7 +797,7 @@ def main(page: ft.Page):
     )
 
     # ==========================================
-    # SCREEN 4: Summary Screen (Date Range & Machine Filter)
+    # SCREEN 4: Summary Screen
     # ==========================================
     def clear_field_on_focus(field):
         field.value = ""
@@ -847,7 +829,6 @@ def main(page: ft.Page):
     current_summary_cache = []
 
     def load_machine_options():
-        """Populate Machine Dropdown from registered machines"""
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         cursor.execute("SELECT id, machine_name, machine_no FROM machines ORDER BY machine_name ASC")
@@ -866,9 +847,6 @@ def main(page: ft.Page):
         except ValueError:
             return None
 
-    # ==========================================
-    # EXPORT SUMMARY CSV LOGIC
-    # ==========================================
     def export_summary_csv(_):
         if not current_summary_cache:
             show_snack("No summary data to export.", colors.ORANGE_800 if colors else None)
@@ -883,10 +861,8 @@ def main(page: ft.Page):
 
             with open(save_path, mode="w", newline="", encoding="utf-8-sig") as f:
                 writer = csv.writer(f)
-
                 writer.writerow(["Machine Operations Summary Report"])
-                writer.writerow(
-                    [f"Date Range: From {from_date_field.value or 'Beginning'} To {to_date_field.value or 'Present'}"])
+                writer.writerow([f"Date Range: From {from_date_field.value or 'Beginning'} To {to_date_field.value or 'Present'}"])
                 writer.writerow([])
 
                 writer.writerow([
@@ -937,12 +913,7 @@ def main(page: ft.Page):
 
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
-
-        query = """
-            SELECT date, machine_id, machine_name, machine_type, machine_no, operator, work_hours, fuel_gallons
-            FROM records
-        """
-        cursor.execute(query)
+        cursor.execute("SELECT date, machine_id, machine_name, machine_type, machine_no, operator, work_hours, fuel_gallons FROM records")
         all_records = cursor.fetchall()
         conn.close()
 
@@ -980,8 +951,7 @@ def main(page: ft.Page):
         if not grouped_data:
             summary_result_container.controls.append(
                 ft.Container(
-                    content=ft.Text("No records found for the selected filter.", color=colors.GREY_700 if colors else None,
-                                    weight=ft.FontWeight.BOLD),
+                    content=ft.Text("No records found for the selected filter.", color=colors.GREY_700 if colors else None, weight=ft.FontWeight.BOLD),
                     padding=15,
                     bgcolor=colors.AMBER_50 if colors else None,
                     border_radius=8,
@@ -1033,10 +1003,8 @@ def main(page: ft.Page):
                 ft.Text("📊 Overall Range Grand Total", weight=ft.FontWeight.BOLD, size=15, color=colors.BLUE_900 if colors else None),
                 ft.Divider(height=4),
                 ft.Row([
-                    ft.Text(f"Total Work Hours: {grand_hours:.2f} Hrs", weight=ft.FontWeight.BOLD,
-                            color=colors.GREEN_800 if colors else None),
-                    ft.Text(f"Total Fuel Consumed: {grand_fuel:.2f} Gal", weight=ft.FontWeight.BOLD,
-                            color=colors.BLUE_800 if colors else None),
+                    ft.Text(f"Total Work Hours: {grand_hours:.2f} Hrs", weight=ft.FontWeight.BOLD, color=colors.GREEN_800 if colors else None),
+                    ft.Text(f"Total Fuel Consumed: {grand_fuel:.2f} Gal", weight=ft.FontWeight.BOLD, color=colors.BLUE_800 if colors else None),
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
             ], spacing=6),
             padding=12,
@@ -1062,7 +1030,6 @@ def main(page: ft.Page):
         page.update()
 
     def set_quick_range(days):
-        """Quick date range selector helper"""
         now = datetime.now()
         to_date_field.value = now.strftime("%d/%m/%Y")
         if days == "today":
@@ -1100,7 +1067,7 @@ def main(page: ft.Page):
     )
 
     # ==========================================
-    # NAVIGATION LOGIC & SIDE BAR LAYOUT
+    # NAVIGATION LOGIC & LAYOUT
     # ==========================================
     screens = [screen_1_setup, dashboard_container, screen_3_records, screen_4_summary]
     current_tab = 0
@@ -1204,7 +1171,6 @@ def main(page: ft.Page):
             if current_tab < len(screens) - 1:
                 switch_screen(current_tab + 1)
 
-    # Main Layout combining Sidebar and Content Area horizontally
     body_layout = ft.Row(
         [
             sidebar,
@@ -1221,8 +1187,6 @@ def main(page: ft.Page):
     )
 
     page.add(body_layout)
-
-    # Initial App Load
     switch_screen(0)
 
 
