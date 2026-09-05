@@ -21,21 +21,16 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
       - name: Setup Flutter SDK
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.22.x'
           channel: 'stable'
 
-      - name: Verify Flutter Installation
-        run: |
-          flutter --version
-          flutter doctor
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
       - name: Install Dependencies
         run: |
@@ -45,7 +40,7 @@ jobs:
 
       - name: Build Android APK
         run: |
-          flet build apk -y --verbose
+          flet build apk --verbose
 
       - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
