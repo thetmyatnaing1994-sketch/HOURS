@@ -4,11 +4,10 @@ import os
 import sqlite3
 import flet as ft
 
-# Version ကွဲလွဲမှုကြောင့် စာလုံးကြီး/သေး Error မတက်စေရန် Safe Import ပြုလုပ်ခြင်း
-try:
-    from flet import colors, icons, border
-except ImportError:
-    from flet import Colors as colors, Icons as icons, Border as border
+# Dynamic Flet module reference to support multiple Flet versions without IDE inspection warnings
+colors = getattr(ft, "colors", getattr(ft, "Colors", None))
+icons = getattr(ft, "icons", getattr(ft, "Icons", None))
+border = getattr(ft, "border", getattr(ft, "Border", None))
 
 
 # Border Helper Function
@@ -17,8 +16,9 @@ def get_border_all(width, color):
         return ft.border.all(width, color)
     elif hasattr(ft, "Border") and hasattr(ft.Border, "all"):
         return ft.Border.all(width, color)
-    else:
+    elif border and hasattr(border, "all"):
         return border.all(width, color)
+    return None
 
 
 DB_NAME = "machine_management.db"
@@ -146,8 +146,8 @@ def main(page: ft.Page):
     init_db()
     clean_outdated_daily_operations()
 
-    def show_snack(msg: str, color=colors.GREEN_700):
-        snack = ft.SnackBar(ft.Text(msg, color=colors.WHITE), bgcolor=color)
+    def show_snack(msg: str, color=colors.GREEN_700 if colors else None):
+        snack = ft.SnackBar(ft.Text(msg, color=colors.WHITE if colors else None), bgcolor=color)
         page.overlay.append(snack)
         snack.open = True
         page.update()
@@ -196,19 +196,17 @@ def main(page: ft.Page):
             rows = cursor.fetchall()
 
             if not rows:
-                show_snack(f"No records found for {m_name} on {target_date}.", colors.ORANGE_800)
+                show_snack(f"No records found for {m_name} on {target_date}.", colors.ORANGE_800 if colors else None)
                 conn.close()
                 return
 
             with open(save_path, mode="w", newline="", encoding="utf-8-sig") as f:
                 writer = csv.writer(f)
-                
-                # --- ဖိုင်တွင်း ထည့်သွင်းပေးလိုက်သော ထင်ရှားသည့် ခေါင်းစဉ်များ (Titles) ---
+
                 writer.writerow([f"Machine Operation Report: {m_name} ({m_no or 'N/A'})"])
                 writer.writerow([f"Date: {target_date}"])
-                writer.writerow([]) # အလွတ်တစ်ကြောင်းခြားရန်
+                writer.writerow([])
 
-                # Table Column Headers
                 writer.writerow([
                     "Sr No.", "Record ID", "Machine Name", "Machine Type", "Machine No.",
                     "Operator", "Operation Status", "Start Time", "End Time", "Work Hours",
@@ -239,7 +237,7 @@ def main(page: ft.Page):
             conn.close()
             show_snack(f"Saved: Download/{file_name}")
         except Exception as err:
-            show_snack(f"Error saving CSV: {str(err)}", colors.RED_600)
+            show_snack(f"Error saving CSV: {str(err)}", colors.RED_600 if colors else None)
 
     # ==========================================
     # SCREEN 1: Register Machines
@@ -274,16 +272,16 @@ def main(page: ft.Page):
 
         registered_machines_list.controls.clear()
         for m_id, name, m_type, no, op_name in rows:
-            def delete_machine(e, machine_id=m_id):
+            def delete_machine(_, target_m_id=m_id):
                 conn_del = sqlite3.connect(DB_NAME)
                 cursor_del = conn_del.cursor()
-                cursor_del.execute("DELETE FROM machines WHERE id=?", (machine_id,))
-                cursor_del.execute("DELETE FROM active_today_machines WHERE machine_id=?", (machine_id,))
+                cursor_del.execute("DELETE FROM machines WHERE id=?", (target_m_id,))
+                cursor_del.execute("DELETE FROM active_today_machines WHERE machine_id=?", (target_m_id,))
                 conn_del.commit()
                 conn_del.close()
                 load_registered_machines()
                 refresh_dashboard()
-                show_snack("Machine deleted.", colors.ORANGE_800)
+                show_snack("Machine deleted.", colors.ORANGE_800 if colors else None)
 
             display_str = f"{name}({no or 'N/A'}),type:{m_type or 'N/A'},operator:{op_name or 'N/A'}"
 
@@ -293,48 +291,48 @@ def main(page: ft.Page):
                         [
                             ft.Column(
                                 [
-                                    ft.Text(display_str, weight=ft.FontWeight.BOLD, size=13, color=colors.BLUE_900),
+                                    ft.Text(display_str, weight=ft.FontWeight.BOLD, size=13, color=colors.BLUE_900 if colors else None),
                                 ],
                                 expand=True
                             ),
                             ft.IconButton(
-                                icon=icons.DELETE_FOREVER,
-                                icon_color=colors.RED_400,
+                                icon=getattr(icons, "DELETE_FOREVER", "delete_forever") if icons else "delete_forever",
+                                icon_color=colors.RED_400 if colors else None,
                                 on_click=delete_machine
                             )
                         ],
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN
                     ),
                     padding=12,
-                    bgcolor=colors.GREY_100,
+                    bgcolor=colors.GREY_100 if colors else None,
                     border_radius=8,
-                    border=get_border_all(1, colors.GREY_300),
+                    border=get_border_all(1, colors.GREY_300 if colors else None),
                     ink=True,
-                    on_click=lambda e, machine_id=m_id: add_to_today_operations(machine_id)
+                    on_click=lambda _, target_m_id=m_id: add_to_today_operations(target_m_id)
                 )
             )
         page.update()
 
-    def add_machine(e=None):
+    def add_machine(_=None):
         name = format_capital_title(reg_name_field.value)
         m_type = format_capital_title(reg_type_field.value)
         no = format_capital_title(reg_no_field.value)
         op_name = format_capital_title(reg_operator_field.value)
 
         if not name:
-            show_snack("Please enter machine name.", colors.RED_400)
+            show_snack("Please enter machine name.", colors.RED_400 if colors else None)
             reg_name_field.focus()
             return
         if not m_type:
-            show_snack("Please enter machine type.", colors.RED_400)
+            show_snack("Please enter machine type.", colors.RED_400 if colors else None)
             reg_type_field.focus()
             return
         if not no:
-            show_snack("Please enter machine number.", colors.RED_400)
+            show_snack("Please enter machine number.", colors.RED_400 if colors else None)
             reg_no_field.focus()
             return
         if not op_name:
-            show_snack("Please enter operator name.", colors.RED_400)
+            show_snack("Please enter operator name.", colors.RED_400 if colors else None)
             reg_operator_field.focus()
             return
 
@@ -355,10 +353,10 @@ def main(page: ft.Page):
         show_snack("New machine registered successfully.")
         reg_name_field.focus()
 
-    reg_name_field.on_submit = lambda e: reg_type_field.focus()
-    reg_type_field.on_submit = lambda e: reg_no_field.focus()
-    reg_no_field.on_submit = lambda e: reg_operator_field.focus()
-    reg_operator_field.on_submit = lambda e: add_machine()
+    reg_name_field.on_submit = lambda _: reg_type_field.focus()
+    reg_type_field.on_submit = lambda _: reg_no_field.focus()
+    reg_no_field.on_submit = lambda _: reg_operator_field.focus()
+    reg_operator_field.on_submit = lambda _: add_machine()
 
     screen_1_setup = ft.Column(
         controls=[
@@ -366,14 +364,14 @@ def main(page: ft.Page):
             ft.Column([reg_name_field, reg_type_field, reg_no_field, reg_operator_field], spacing=12),
             ft.ElevatedButton(
                 "Save Machine",
-                icon=icons.ADD,
-                style=ft.ButtonStyle(color=colors.WHITE, bgcolor=colors.BLUE_700),
+                icon=getattr(icons, "ADD", "add") if icons else "add",
+                style=ft.ButtonStyle(color=colors.WHITE if colors else None, bgcolor=colors.BLUE_700 if colors else None),
                 on_click=add_machine,
                 width=300
             ),
             ft.Divider(),
             ft.Text("Registered Machines List (Click to Add to Today's Operation)", size=14, weight=ft.FontWeight.BOLD,
-                    color=colors.BLUE_800),
+                    color=colors.BLUE_800 if colors else None),
             registered_machines_list
         ],
         spacing=10,
@@ -394,7 +392,6 @@ def main(page: ft.Page):
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
 
-        # Active Machines Today
         cursor.execute("""
             SELECT m.id, m.machine_name, m.machine_no, m.operator 
             FROM machines m
@@ -409,24 +406,24 @@ def main(page: ft.Page):
 
         status_summary_container.content = ft.Column([
             ft.Text(f"📊 Today's ({rec_date}) Machine Operation Summary", weight=ft.FontWeight.BOLD, size=14,
-                    color=colors.BLUE_900),
+                    color=colors.BLUE_900 if colors else None),
             ft.Divider(height=4),
             ft.Text(f"🟢 Active Machines ({len(machines)}): {working_names if working_names else 'None'}",
-                    color=colors.GREEN_800, weight=ft.FontWeight.W_500),
+                    color=colors.GREEN_800 if colors else None, weight=ft.FontWeight.W_500),
         ], spacing=6)
 
         status_summary_container.padding = 12
-        status_summary_container.bgcolor = colors.BLUE_50
+        status_summary_container.bgcolor = colors.BLUE_50 if colors else None
         status_summary_container.border_radius = 8
-        status_summary_container.border = get_border_all(1, colors.BLUE_300)
+        status_summary_container.border = get_border_all(1, colors.BLUE_300 if colors else None)
         page.update()
 
     def build_machine_card(m_id, name, m_type, no, op_name):
-        def set_start_now(e):
+        def set_start_now(_):
             start_time_field.value = datetime.now().strftime("%I:%M %p")
             page.update()
 
-        def set_end_now(e):
+        def set_end_now(_):
             end_time_field.value = datetime.now().strftime("%I:%M %p")
             page.update()
 
@@ -445,15 +442,19 @@ def main(page: ft.Page):
         )
 
         btn_play = ft.IconButton(
-            icon=icons.PLAY_ARROW, icon_color=colors.WHITE, bgcolor=colors.GREEN_700,
+            icon=getattr(icons, "PLAY_ARROW", "play_arrow") if icons else "play_arrow",
+            icon_color=colors.WHITE if colors else None,
+            bgcolor=colors.GREEN_700 if colors else None,
             tooltip="Set Start Time", on_click=set_start_now
         )
         btn_stop = ft.IconButton(
-            icon=icons.STOP, icon_color=colors.WHITE, bgcolor=colors.RED_700,
+            icon=getattr(icons, "STOP", "stop") if icons else "stop",
+            icon_color=colors.WHITE if colors else None,
+            bgcolor=colors.RED_700 if colors else None,
             tooltip="Set End Time", on_click=set_end_now
         )
 
-        def save_machine_daily_record(e):
+        def save_machine_daily_record(_):
             r_date = datetime.now().strftime("%d/%m/%Y")
             start_val = start_time_field.value.strip()
             end_val = end_time_field.value.strip()
@@ -472,11 +473,11 @@ def main(page: ft.Page):
             try:
                 fuel_num = float(fuel_val) if fuel_val else 0.0
             except ValueError:
-                show_snack("Please enter numbers for fuel amount only", colors.RED_400)
+                show_snack("Please enter numbers for fuel amount only", colors.RED_400 if colors else None)
                 return
 
             if hours_num == 0 and fuel_num == 0 and not remark_val and not start_val:
-                show_snack(f"Please enter details for {name}", colors.RED_400)
+                show_snack(f"Please enter details for {name}", colors.RED_400 if colors else None)
                 return
 
             conn_rec = sqlite3.connect(DB_NAME)
@@ -498,8 +499,9 @@ def main(page: ft.Page):
             refresh_dashboard()
 
         btn_save = ft.ElevatedButton(
-            "Add Record", icon=icons.ADD,
-            style=ft.ButtonStyle(color=colors.WHITE, bgcolor=colors.BLUE_700),
+            "Add Record",
+            icon=getattr(icons, "ADD", "add") if icons else "add",
+            style=ft.ButtonStyle(color=colors.WHITE if colors else None, bgcolor=colors.BLUE_700 if colors else None),
             on_click=save_machine_daily_record
         )
 
@@ -507,9 +509,9 @@ def main(page: ft.Page):
             content=ft.Column([
                 ft.Row([
                     ft.Text(f"{name} ({no or 'N/A'})", size=15, weight=ft.FontWeight.BOLD),
-                    ft.Text(f"Operator: {op_name or '-'}", size=12, color=colors.BLUE_800, weight=ft.FontWeight.W_500)
+                    ft.Text(f"Operator: {op_name or '-'}", size=12, color=colors.BLUE_800 if colors else None, weight=ft.FontWeight.W_500)
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                ft.Text(f"Type: {m_type or '-'}", size=11, color=colors.GREY_700),
+                ft.Text(f"Type: {m_type or '-'}", size=11, color=colors.GREY_700 if colors else None),
 
                 ft.Divider(height=4),
 
@@ -523,9 +525,9 @@ def main(page: ft.Page):
                 ], spacing=8)
             ], spacing=8),
             padding=12,
-            bgcolor=colors.WHITE,
+            bgcolor=colors.WHITE if colors else None,
             border_radius=8,
-            border=get_border_all(1, colors.BLUE_200)
+            border=get_border_all(1, colors.BLUE_200 if colors else None)
         )
 
     def refresh_dashboard():
@@ -550,17 +552,17 @@ def main(page: ft.Page):
                 ft.Container(
                     content=ft.Text(
                         "No active machines selected for today. Please click machines in 'Register Machine' tab to add them to today's operations.",
-                        color=colors.GREY_700, weight=ft.FontWeight.BOLD),
+                        color=colors.GREY_700 if colors else None, weight=ft.FontWeight.BOLD),
                     padding=15,
-                    bgcolor=colors.AMBER_50,
+                    bgcolor=colors.AMBER_50 if colors else None,
                     border_radius=8,
-                    border=get_border_all(1, colors.AMBER_300)
+                    border=get_border_all(1, colors.AMBER_300 if colors else None)
                 )
             )
         else:
             dashboard_container.controls.append(
                 ft.Row([
-                    ft.Text(f"Today's Date: {rec_date}", weight=ft.FontWeight.BOLD, size=15, color=colors.BLUE_900),
+                    ft.Text(f"Today's Date: {rec_date}", weight=ft.FontWeight.BOLD, size=15, color=colors.BLUE_900 if colors else None),
                 ], alignment=ft.MainAxisAlignment.START)
             )
             dashboard_container.controls.append(status_summary_container)
@@ -580,22 +582,23 @@ def main(page: ft.Page):
         ref=search_filter_text,
         label="Filter by Machine / Operator",
         hint_text="Type machine name or operator...",
-        prefix_icon=icons.SEARCH,
+        prefix_icon=getattr(icons, "SEARCH", "search") if icons else "search",
         dense=True,
-        on_change=lambda e: load_records_data()
+        on_change=lambda _: load_records_data()
     )
 
-    def toggle_date_sort(e):
+    def toggle_date_sort(_):
         nonlocal date_sort_descending
         date_sort_descending = not date_sort_descending
         btn_date_sort.text = "Sort: Newest First" if date_sort_descending else "Sort: Oldest First"
-        btn_date_sort.icon = icons.ARROW_DOWNWARD if date_sort_descending else icons.ARROW_UPWARD
+        btn_date_sort.icon = getattr(icons, "ARROW_DOWNWARD" if date_sort_descending else "ARROW_UPWARD", "arrow_downward") if icons else ("arrow_downward" if date_sort_descending else "arrow_upward")
         load_records_data()
 
+    # Fixed: Changed keyword argument text= to positional argument to support all Flet versions
     btn_date_sort = ft.ElevatedButton(
-        text="Sort: Newest First",
-        icon=icons.ARROW_DOWNWARD,
-        style=ft.ButtonStyle(bgcolor=colors.BLUE_100, color=colors.BLUE_900),
+        "Sort: Newest First",
+        icon=getattr(icons, "ARROW_DOWNWARD", "arrow_downward") if icons else "arrow_downward",
+        style=ft.ButtonStyle(bgcolor=colors.BLUE_100 if colors else None, color=colors.BLUE_900 if colors else None),
         on_click=toggle_date_sort
     )
 
@@ -606,9 +609,9 @@ def main(page: ft.Page):
         conn.commit()
         conn.close()
         load_records_data()
-        show_snack("Record deleted.", colors.ORANGE_800)
+        show_snack("Record deleted.", colors.ORANGE_800 if colors else None)
 
-    def load_records_data(e=None, filter_keyword=None):
+    def load_records_data(_=None, filter_keyword=None):
         clean_outdated_daily_operations()
         today_str = datetime.now().strftime("%d/%m/%Y")
 
@@ -633,11 +636,11 @@ def main(page: ft.Page):
         if not dates_rows:
             screen_3_records_container.controls.append(
                 ft.Container(
-                    content=ft.Text("No records found in database.", color=colors.GREY_700, weight=ft.FontWeight.BOLD),
+                    content=ft.Text("No records found in database.", color=colors.GREY_700 if colors else None, weight=ft.FontWeight.BOLD),
                     padding=15,
-                    bgcolor=colors.AMBER_50,
+                    bgcolor=colors.AMBER_50 if colors else None,
                     border_radius=8,
-                    border=get_border_all(1, colors.AMBER_300)
+                    border=get_border_all(1, colors.AMBER_300 if colors else None)
                 )
             )
             conn.close()
@@ -676,7 +679,7 @@ def main(page: ft.Page):
                 m_total_fuel = 0.0
 
                 for row in rec_rows:
-                    r_id, s_time, e_time, w_hrs, f_gal, r_mark = row
+                    rec_id, s_time, e_time, w_hrs, f_gal, r_mark = row
                     m_total_hours += w_hrs
                     m_total_fuel += f_gal
 
@@ -690,10 +693,10 @@ def main(page: ft.Page):
                                 ft.DataCell(ft.Text(str(r_mark or "-"))),
                                 ft.DataCell(
                                     ft.IconButton(
-                                        icon=icons.DELETE,
-                                        icon_color=colors.RED_500,
+                                        icon=getattr(icons, "DELETE", "delete") if icons else "delete",
+                                        icon_color=colors.RED_500 if colors else None,
                                         tooltip="Delete",
-                                        on_click=lambda e, r_id=r_id: delete_record_entry(r_id)
+                                        on_click=lambda _, target_id=rec_id: delete_record_entry(target_id)
                                     )
                                 ),
                             ]
@@ -717,10 +720,10 @@ def main(page: ft.Page):
                         f"Daily Total: {m_total_hours:.2f} Hrs | {m_total_fuel:.2f} Gal",
                         weight=ft.FontWeight.BOLD,
                         size=13,
-                        color=colors.BLUE_900
+                        color=colors.BLUE_900 if colors else None
                     ),
                     padding=8,
-                    bgcolor=colors.BLUE_100,
+                    bgcolor=colors.BLUE_100 if colors else None,
                     border_radius=6,
                     margin=ft.margin.only(bottom=8)
                 )
@@ -730,17 +733,17 @@ def main(page: ft.Page):
                         ft.Column([
                             ft.Row([
                                 ft.Text(f"{m_name} ({m_no or 'N/A'})", size=15, weight=ft.FontWeight.BOLD,
-                                        color=colors.BLUE_900),
+                                        color=colors.BLUE_900 if colors else None),
                                 ft.Text(f"|  Operator: {op_name or '-'}", size=13, weight=ft.FontWeight.W_500,
-                                        color=colors.BLUE_800),
+                                        color=colors.BLUE_800 if colors else None),
                             ], spacing=6),
-                            ft.Text(f"Type: {m_type or '-'}", size=12, color=colors.GREY_700),
+                            ft.Text(f"Type: {m_type or '-'}", size=12, color=colors.GREY_700 if colors else None),
                         ]),
                         ft.ElevatedButton(
                             "CSV Save",
-                            icon=icons.DOWNLOAD,
-                            style=ft.ButtonStyle(bgcolor=colors.GREEN_700, color=colors.WHITE),
-                            on_click=lambda e, rdate=rec_date, mid=m_id, mname=m_name,
+                            icon=getattr(icons, "DOWNLOAD", "download") if icons else "download",
+                            style=ft.ButtonStyle(bgcolor=colors.GREEN_700 if colors else None, color=colors.WHITE if colors else None),
+                            on_click=lambda _, rdate=rec_date, mid=m_id, mname=m_name,
                                             mno=m_no: export_single_machine_csv(rdate, mid, mname, mno)
                         )
                     ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
@@ -750,7 +753,7 @@ def main(page: ft.Page):
                             content=ft.Column([
                                 summary_banner,
                                 ft.Row([machine_table], scroll=ft.ScrollMode.ALWAYS) if table_rows else ft.Text(
-                                    "No entries recorded.", color=colors.GREY_600, italic=True)
+                                    "No entries recorded.", color=colors.GREY_600 if colors else None, italic=True)
                             ], spacing=6),
                             padding=10
                         )
@@ -760,9 +763,9 @@ def main(page: ft.Page):
                 machine_tiles.append(
                     ft.Container(
                         content=m_expansion_tile,
-                        bgcolor=colors.WHITE,
+                        bgcolor=colors.WHITE if colors else None,
                         border_radius=6,
-                        border=get_border_all(1, colors.BLUE_100),
+                        border=get_border_all(1, colors.BLUE_100 if colors else None),
                         margin=ft.margin.only(bottom=6)
                     )
                 )
@@ -773,7 +776,7 @@ def main(page: ft.Page):
                         f"📅 Date: {rec_date} ({'Today' if rec_date == today_str else 'Past Record'})",
                         size=16,
                         weight=ft.FontWeight.BOLD,
-                        color=colors.BLUE_900
+                        color=colors.BLUE_900 if colors else None
                     ),
                     initially_expanded=bool(search_kw),
                     controls=[
@@ -787,9 +790,9 @@ def main(page: ft.Page):
                 screen_3_records_container.controls.append(
                     ft.Container(
                         content=date_expansion_tile,
-                        bgcolor=colors.BLUE_50,
+                        bgcolor=colors.BLUE_50 if colors else None,
                         border_radius=8,
-                        border=get_border_all(1, colors.BLUE_300)
+                        border=get_border_all(1, colors.BLUE_300 if colors else None)
                     )
                 )
 
@@ -823,14 +826,14 @@ def main(page: ft.Page):
         hint_text="e.g. 01/09/2026",
         dense=True,
         expand=True,
-        on_focus=lambda e: clear_field_on_focus(from_date_field)
+        on_focus=lambda _: clear_field_on_focus(from_date_field)
     )
     to_date_field = ft.TextField(
         label="To Date (DD/MM/YYYY)",
         hint_text="e.g. 30/09/2026",
         dense=True,
         expand=True,
-        on_focus=lambda e: clear_field_on_focus(to_date_field)
+        on_focus=lambda _: clear_field_on_focus(to_date_field)
     )
     machine_dropdown = ft.Dropdown(
         label="Select Machine",
@@ -864,11 +867,11 @@ def main(page: ft.Page):
             return None
 
     # ==========================================
-    # EXPORT SUMMARY CSV LOGIC (Modified to include Titles/Headers)
+    # EXPORT SUMMARY CSV LOGIC
     # ==========================================
-    def export_summary_csv(e):
+    def export_summary_csv(_):
         if not current_summary_cache:
-            show_snack("No summary data to export.", colors.ORANGE_800)
+            show_snack("No summary data to export.", colors.ORANGE_800 if colors else None)
             return
 
         try:
@@ -880,13 +883,12 @@ def main(page: ft.Page):
 
             with open(save_path, mode="w", newline="", encoding="utf-8-sig") as f:
                 writer = csv.writer(f)
-                
-                # --- Summary CSV ဖိုင်တွင်း ထည့်သွင်းပေးလိုက်သော ထင်ရှားသည့် ခေါင်းစဉ်များ (Titles) ---
-                writer.writerow([f"Machine Operations Summary Report"])
-                writer.writerow([f"Date Range: From {from_date_field.value or 'Beginning'} To {to_date_field.value or 'Present'}"])
-                writer.writerow([]) # အလွတ်တစ်ကြောင်းခြားရန်
 
-                # Table Column Headers
+                writer.writerow(["Machine Operations Summary Report"])
+                writer.writerow(
+                    [f"Date Range: From {from_date_field.value or 'Beginning'} To {to_date_field.value or 'Present'}"])
+                writer.writerow([])
+
                 writer.writerow([
                     "Sr No.", "Machine Name", "Machine Type", "Machine No.",
                     "Operator", "Total Hours", "Total Fuel (Gallons)", "Avg Rate (Gal/Hr)"
@@ -914,9 +916,9 @@ def main(page: ft.Page):
 
             show_snack(f"Summary Exported: Download/{file_name}")
         except Exception as err:
-            show_snack(f"Error exporting CSV: {str(err)}", colors.RED_600)
+            show_snack(f"Error exporting CSV: {str(err)}", colors.RED_600 if colors else None)
 
-    def calculate_summary(e=None):
+    def calculate_summary(_=None):
         nonlocal current_summary_cache
         from_str = from_date_field.value.strip() if from_date_field.value else ""
         to_str = to_date_field.value.strip() if to_date_field.value else ""
@@ -925,10 +927,10 @@ def main(page: ft.Page):
         to_dt = parse_ddmmyyyy(to_str) if to_str else None
 
         if from_str and not from_dt:
-            show_snack("Invalid From Date format. Use DD/MM/YYYY", colors.RED_400)
+            show_snack("Invalid From Date format. Use DD/MM/YYYY", colors.RED_400 if colors else None)
             return
         if to_str and not to_dt:
-            show_snack("Invalid To Date format. Use DD/MM/YYYY", colors.RED_400)
+            show_snack("Invalid To Date format. Use DD/MM/YYYY", colors.RED_400 if colors else None)
             return
 
         selected_m_id = machine_dropdown.value
@@ -978,11 +980,12 @@ def main(page: ft.Page):
         if not grouped_data:
             summary_result_container.controls.append(
                 ft.Container(
-                    content=ft.Text("No records found for the selected filter.", color=colors.GREY_700, weight=ft.FontWeight.BOLD),
+                    content=ft.Text("No records found for the selected filter.", color=colors.GREY_700 if colors else None,
+                                    weight=ft.FontWeight.BOLD),
                     padding=15,
-                    bgcolor=colors.AMBER_50,
+                    bgcolor=colors.AMBER_50 if colors else None,
                     border_radius=8,
-                    border=get_border_all(1, colors.AMBER_300)
+                    border=get_border_all(1, colors.AMBER_300 if colors else None)
                 )
             )
             page.update()
@@ -1027,27 +1030,29 @@ def main(page: ft.Page):
 
         grand_total_card = ft.Container(
             content=ft.Column([
-                ft.Text("📊 Overall Range Grand Total", weight=ft.FontWeight.BOLD, size=15, color=colors.BLUE_900),
+                ft.Text("📊 Overall Range Grand Total", weight=ft.FontWeight.BOLD, size=15, color=colors.BLUE_900 if colors else None),
                 ft.Divider(height=4),
                 ft.Row([
-                    ft.Text(f"Total Work Hours: {grand_hours:.2f} Hrs", weight=ft.FontWeight.BOLD, color=colors.GREEN_800),
-                    ft.Text(f"Total Fuel Consumed: {grand_fuel:.2f} Gal", weight=ft.FontWeight.BOLD, color=colors.BLUE_800),
+                    ft.Text(f"Total Work Hours: {grand_hours:.2f} Hrs", weight=ft.FontWeight.BOLD,
+                            color=colors.GREEN_800 if colors else None),
+                    ft.Text(f"Total Fuel Consumed: {grand_fuel:.2f} Gal", weight=ft.FontWeight.BOLD,
+                            color=colors.BLUE_800 if colors else None),
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
             ], spacing=6),
             padding=12,
-            bgcolor=colors.BLUE_50,
+            bgcolor=colors.BLUE_50 if colors else None,
             border_radius=8,
-            border=get_border_all(1, colors.BLUE_300)
+            border=get_border_all(1, colors.BLUE_300 if colors else None)
         )
 
         summary_result_container.controls.extend([
             grand_total_card,
             ft.Row([
-                ft.Text("Machine Totals Summary", size=14, weight=ft.FontWeight.BOLD, color=colors.BLUE_900),
+                ft.Text("Machine Totals Summary", size=14, weight=ft.FontWeight.BOLD, color=colors.BLUE_900 if colors else None),
                 ft.ElevatedButton(
                     "Export Summary CSV",
-                    icon=icons.DOWNLOAD,
-                    style=ft.ButtonStyle(bgcolor=colors.GREEN_700, color=colors.WHITE),
+                    icon=getattr(icons, "DOWNLOAD", "download") if icons else "download",
+                    style=ft.ButtonStyle(bgcolor=colors.GREEN_700 if colors else None, color=colors.WHITE if colors else None),
                     on_click=export_summary_csv
                 )
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
@@ -1066,14 +1071,14 @@ def main(page: ft.Page):
             from_date_field.value = datetime(now.year, now.month, 1).strftime("%d/%m/%Y")
         calculate_summary()
 
-    from_date_field.on_submit = lambda e: to_date_field.focus()
-    to_date_field.on_submit = lambda e: calculate_summary()
-    machine_dropdown.on_change = lambda e: calculate_summary()
+    from_date_field.on_submit = lambda _: to_date_field.focus()
+    to_date_field.on_submit = lambda _: calculate_summary()
+    machine_dropdown.on_change = lambda _: calculate_summary()
 
     btn_filter = ft.ElevatedButton(
         "Filter Range",
-        icon=icons.FILTER_ALT,
-        style=ft.ButtonStyle(bgcolor=colors.BLUE_700, color=colors.WHITE),
+        icon=getattr(icons, "FILTER_ALT", "filter_alt") if icons else "filter_alt",
+        style=ft.ButtonStyle(bgcolor=colors.BLUE_700 if colors else None, color=colors.WHITE if colors else None),
         on_click=calculate_summary
     )
 
@@ -1081,8 +1086,8 @@ def main(page: ft.Page):
         controls=[
             ft.Text("Machine Operations Summary & Analytics", size=16, weight=ft.FontWeight.BOLD),
             ft.Row([
-                ft.OutlinedButton("Today", on_click=lambda e: set_quick_range("today")),
-                ft.OutlinedButton("This Month", on_click=lambda e: set_quick_range("month")),
+                ft.OutlinedButton("Today", on_click=lambda _: set_quick_range("today")),
+                ft.OutlinedButton("This Month", on_click=lambda _: set_quick_range("month")),
             ], spacing=10),
             ft.Row([from_date_field, to_date_field], spacing=10),
             ft.Row([machine_dropdown, btn_filter], spacing=10),
@@ -1095,7 +1100,7 @@ def main(page: ft.Page):
     )
 
     # ==========================================
-    # NAVIGATION LOGIC & SIDE BAR LAYOUT (Collapsible)
+    # NAVIGATION LOGIC & SIDE BAR LAYOUT
     # ==========================================
     screens = [screen_1_setup, dashboard_container, screen_3_records, screen_4_summary]
     current_tab = 0
@@ -1109,7 +1114,7 @@ def main(page: ft.Page):
 
     sidebar_expanded = True
 
-    def toggle_sidebar(e):
+    def toggle_sidebar(_):
         nonlocal sidebar_expanded
         sidebar_expanded = not sidebar_expanded
         sidebar.width = 220 if sidebar_expanded else 70
@@ -1122,10 +1127,10 @@ def main(page: ft.Page):
     def update_sidebar_content():
         sidebar_header.content = ft.Row(
             [
-                ft.Text("Menu", size=16, weight=ft.FontWeight.BOLD, color=colors.BLUE_900, visible=sidebar_expanded),
+                ft.Text("Menu", size=16, weight=ft.FontWeight.BOLD, color=colors.BLUE_900 if colors else None, visible=sidebar_expanded),
                 ft.IconButton(
-                    icon=icons.MENU_OPEN if sidebar_expanded else icons.MENU,
-                    icon_color=colors.BLUE_900,
+                    icon=getattr(icons, "MENU_OPEN" if sidebar_expanded else "MENU", "menu_open" if sidebar_expanded else "menu") if icons else ("menu_open" if sidebar_expanded else "menu"),
+                    icon_color=colors.BLUE_900 if colors else None,
                     tooltip="Collapse/Expand Menu",
                     on_click=toggle_sidebar
                 )
@@ -1135,15 +1140,17 @@ def main(page: ft.Page):
 
         def make_nav_btn(idx, text, icon_name):
             is_selected = (current_tab == idx)
+            ic_val = getattr(icons, icon_name, icon_name.lower()) if icons else icon_name.lower()
             return ft.Container(
                 content=ft.Row(
                     [
-                        ft.Icon(icon_name, color=colors.WHITE if is_selected else colors.BLUE_900, size=20),
-                        ft.Text(text, color=colors.WHITE if is_selected else colors.BLUE_900, weight=ft.FontWeight.W_500, visible=sidebar_expanded)
+                        ft.Icon(ic_val, color=colors.WHITE if is_selected else (colors.BLUE_900 if colors else None), size=20),
+                        ft.Text(text, color=colors.WHITE if is_selected else (colors.BLUE_900 if colors else None),
+                                weight=ft.FontWeight.W_500, visible=sidebar_expanded)
                     ],
                     spacing=10,
                 ),
-                bgcolor=colors.BLUE_800 if is_selected else colors.TRANSPARENT,
+                bgcolor=(colors.BLUE_800 if is_selected else colors.TRANSPARENT) if colors else None,
                 padding=10,
                 border_radius=8,
                 ink=True,
@@ -1154,19 +1161,19 @@ def main(page: ft.Page):
         sidebar_column.controls = [
             sidebar_header,
             ft.Divider(),
-            make_nav_btn(0, "Register Machine", icons.SETTINGS),
-            make_nav_btn(1, "Operations", icons.DASHBOARD),
-            make_nav_btn(2, "Detailed CSV", icons.LIST_ALT),
-            make_nav_btn(3, "Summary", icons.ANALYTICS),
+            make_nav_btn(0, "Register Machine", "SETTINGS"),
+            make_nav_btn(1, "Operations", "DASHBOARD"),
+            make_nav_btn(2, "Detailed CSV", "LIST_ALT"),
+            make_nav_btn(3, "Summary", "ANALYTICS"),
         ]
 
     sidebar = ft.Container(
         content=sidebar_column,
         width=220,
-        bgcolor=colors.BLUE_50,
+        bgcolor=colors.BLUE_50 if colors else None,
         padding=10,
         border_radius=8,
-        border=get_border_all(1, colors.BLUE_200)
+        border=get_border_all(1, colors.BLUE_200 if colors else None)
     )
 
     def switch_screen(tab_index):
