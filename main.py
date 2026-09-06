@@ -136,6 +136,9 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.LIGHT
     page.padding = 10
 
+    # Operation Screen မပျောက်စေရန် Input State များကို ခေတ္တမှတ်ထားမည့် Memory Dictionary
+    operation_states = {}
+
     # Font Setup
     assets_dir = os.path.join(os.path.dirname(__file__), "assets")
     font_path = os.path.join(assets_dir, "Pyidaungsu-2.5_Regular.ttf")
@@ -156,7 +159,7 @@ def main(page: ft.Page):
     search_filter_text = ft.Ref[ft.TextField]()
 
     # ==========================================
-    # EXPORT CSV LOGIC (Modified to include Titles/Headers)
+    # EXPORT CSV LOGIC
     # ==========================================
     def export_single_machine_csv(target_date, m_id, m_name, m_no):
         try:
@@ -419,26 +422,62 @@ def main(page: ft.Page):
         page.update()
 
     def build_machine_card(m_id, name, m_type, no, op_name):
+        # Memory state initialize ပြုလုပ်ခြင်း
+        if m_id not in operation_states:
+            operation_states[m_id] = {"start": "", "end": "", "fuel": "", "remark": ""}
+
+        m_state = operation_states[m_id]
+
+        def update_state_val(key, value):
+            operation_states[m_id][key] = value
+
+        # Today Operation List မှ စက်အား ပြန်လည်ဖယ်ရှားသည့် Function
+        def remove_from_today_operations(_):
+            conn_del = sqlite3.connect(DB_NAME)
+            cursor_del = conn_del.cursor()
+            cursor_del.execute("DELETE FROM active_today_machines WHERE machine_id=?", (m_id,))
+            conn_del.commit()
+            conn_del.close()
+
+            if m_id in operation_states:
+                del operation_states[m_id]
+
+            refresh_dashboard()
+            show_snack(f"{name} ကို ယနေ့ Operating စာရင်းမှ ဖယ်ရှားပြီးပါပြီ။", colors.ORANGE_800 if colors else None)
+
         def set_start_now(_):
-            start_time_field.value = datetime.now().strftime("%I:%M %p")
+            now_str = datetime.now().strftime("%I:%M %p")
+            start_time_field.value = now_str
+            update_state_val("start", now_str)
             page.update()
 
         def set_end_now(_):
-            end_time_field.value = datetime.now().strftime("%I:%M %p")
+            now_str = datetime.now().strftime("%I:%M %p")
+            end_time_field.value = now_str
+            update_state_val("end", now_str)
             page.update()
 
+        # Input fields များကို Memory state အဓိပ္ပာယ်သတ်မှတ်ချက်များနှင့် ချိတ်ဆက်ထားခြင်း
         start_time_field = ft.TextField(
-            label="Start Time", hint_text="08:00 AM", expand=True, dense=True
+            label="Start Time", hint_text="08:00 AM", expand=True, dense=True,
+            value=m_state["start"],
+            on_change=lambda e: update_state_val("start", e.control.value)
         )
         end_time_field = ft.TextField(
-            label="End Time", hint_text="12:00 PM", expand=True, dense=True
+            label="End Time", hint_text="12:00 PM", expand=True, dense=True,
+            value=m_state["end"],
+            on_change=lambda e: update_state_val("end", e.control.value)
         )
 
         fuel_field = ft.TextField(
-            label="Fuel (Gallons)", hint_text="0.0", expand=True, dense=True
+            label="Fuel (Gallons)", hint_text="0.0", expand=True, dense=True,
+            value=m_state["fuel"],
+            on_change=lambda e: update_state_val("fuel", e.control.value)
         )
         remark_field = ft.TextField(
-            label="Remark", hint_text="e.g. Morning / Afternoon", dense=True
+            label="Remark", hint_text="e.g. Morning / Afternoon", dense=True,
+            value=m_state["remark"],
+            on_change=lambda e: update_state_val("remark", e.control.value)
         )
 
         btn_play = ft.IconButton(
@@ -491,7 +530,8 @@ def main(page: ft.Page):
 
             show_snack(f"Record saved for {name} ({hours_num:.2f} hrs).")
 
-            # Reset only this card's fields without resetting/refreshing other machine cards
+            # Reset only this machine card's fields and memory state after save
+            operation_states[m_id] = {"start": "", "end": "", "fuel": "", "remark": ""}
             start_time_field.value = ""
             end_time_field.value = ""
             fuel_field.value = ""
@@ -509,8 +549,16 @@ def main(page: ft.Page):
         return ft.Container(
             content=ft.Column([
                 ft.Row([
-                    ft.Text(f"{name} ({no or 'N/A'})", size=15, weight=ft.FontWeight.BOLD),
-                    ft.Text(f"Operator: {op_name or '-'}", size=12, color=colors.BLUE_800 if colors else None, weight=ft.FontWeight.W_500)
+                    ft.Column([
+                        ft.Text(f"{name} ({no or 'N/A'})", size=15, weight=ft.FontWeight.BOLD),
+                        ft.Text(f"Operator: {op_name or '-'}", size=12, color=colors.BLUE_800 if colors else None, weight=ft.FontWeight.W_500)
+                    ]),
+                    ft.IconButton(
+                        icon=getattr(icons, "CLOSE", "close") if icons else "close",
+                        icon_color=colors.RED_500 if colors else None,
+                        tooltip="Remove from Today's Operations",
+                        on_click=remove_from_today_operations
+                    )
                 ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                 ft.Text(f"Type: {m_type or '-'}", size=11, color=colors.GREY_700 if colors else None),
 
@@ -1195,7 +1243,7 @@ def main(page: ft.Page):
             main_content_area.content = screens[current_tab]
             page.update()
 
-    # Main Layout combining Sidebar and Content Area horizontally (GestureDetector removed)
+    # Main Layout
     body_layout = ft.Row(
         [
             sidebar,
